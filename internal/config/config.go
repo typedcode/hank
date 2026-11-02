@@ -1,0 +1,101 @@
+// Package config loads the optional hank configuration file and resolves
+// the location of the database.
+package config
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// DefaultFinishedPageSize is the number of finished tasks loaded at once.
+const DefaultFinishedPageSize = 50
+
+// Config holds the settings from hank.json. Every field is optional.
+type Config struct {
+	DBPath           string `json:"db_path"`
+	FinishedPageSize int    `json:"finished_page_size"`
+}
+
+// PageSize returns the configured number of finished tasks to load at once,
+// or the default.
+func (c Config) PageSize() int {
+	if c.FinishedPageSize <= 0 {
+		return DefaultFinishedPageSize
+	}
+	return c.FinishedPageSize
+}
+
+// Path returns the location of the configuration file:
+// $XDG_CONFIG_HOME/hank/hank.json, falling back to ~/.config/hank/hank.json.
+func Path() (string, error) {
+	return xdgPath("XDG_CONFIG_HOME", ".config", "hank.json")
+}
+
+// DefaultDBPath returns $XDG_DATA_HOME/hank/hank.db, falling back to
+// ~/.local/share/hank/hank.db.
+func DefaultDBPath() (string, error) {
+	return xdgPath("XDG_DATA_HOME", filepath.Join(".local", "share"), "hank.db")
+}
+
+func xdgPath(env, fallback, file string) (string, error) {
+	base := os.Getenv(env)
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, fallback)
+	}
+	return filepath.Join(base, "hank", file), nil
+}
+
+// Load reads the configuration file from Path. A missing file is not an
+// error and yields the zero Config.
+func Load() (Config, error) {
+	path, err := Path()
+	if err != nil {
+		return Config{}, err
+	}
+	return LoadFile(path)
+}
+
+// LoadFile reads the configuration from path. A missing file yields the zero
+// Config; a file that cannot be parsed is an error.
+func LoadFile(path string) (Config, error) {
+	var cfg Config
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return cfg, nil
+	}
+	if err != nil {
+		return cfg, err
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return cfg, nil
+}
+
+// ResolveDBPath returns the configured database path with a leading ~
+// expanded, or the default path if none is configured.
+func (c Config) ResolveDBPath() (string, error) {
+	if c.DBPath == "" {
+		return DefaultDBPath()
+	}
+	return expandHome(c.DBPath)
+}
+
+func expandHome(path string) (string, error) {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, strings.TrimPrefix(path, "~")), nil
+}
