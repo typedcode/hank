@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,6 +25,32 @@ const (
 )
 
 const formMaxWidth = 72
+
+// batchPlaceholder stands for the list item in the text of a batch task.
+const batchPlaceholder = "{$}"
+
+var (
+	batchList = regexp.MustCompile(`\{\s*"[^"]+"(?:\s*,\s*"[^"]+")*\s*\}`)
+	batchItem = regexp.MustCompile(`"([^"]+)"`)
+)
+
+// expandBatch returns one task per item of the first {"a", "b"} list in the
+// title, or just t if there is no list.
+func expandBatch(t store.Task) []store.Task {
+	loc := batchList.FindStringIndex(t.Title)
+	if loc == nil {
+		return []store.Task{t}
+	}
+	var tasks []store.Task
+	for _, match := range batchItem.FindAllStringSubmatch(t.Title[loc[0]:loc[1]], -1) {
+		item := match[1]
+		c := t
+		c.Title = strings.TrimSpace(t.Title[:loc[0]] + item + t.Title[loc[1]:])
+		c.Text = strings.ReplaceAll(t.Text, batchPlaceholder, item)
+		tasks = append(tasks, c)
+	}
+	return tasks
+}
 
 // taskForm is the overlay to create (editID == 0) or edit a task.
 type taskForm struct {
@@ -164,7 +191,17 @@ func (m *Model) saveForm() {
 	}
 	var err error
 	if t.ID == 0 {
-		t.ID, err = m.store.CreateTask(t)
+		tasks := expandBatch(t)
+		for _, task := range tasks {
+			if task.Title == "" {
+				f.err = "Title is required."
+				return
+			}
+		}
+		var ids []int64
+		if ids, err = m.store.CreateTasks(tasks); err == nil {
+			t.ID = ids[0]
+		}
 	} else {
 		err = m.store.UpdateTask(t)
 	}

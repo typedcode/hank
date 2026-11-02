@@ -15,6 +15,7 @@ hank shows your tasks in a single table: open tasks on top in your own order, fi
 - **Tasks** with title, optional multi-line text, due date and project
 - **States** at a glance: not started, started (green), finished (gray). Overdue tasks are shown in red
 - **Notes indicator**: tasks with extra text are marked with `ⓘ` in a dedicated column in the list
+- **Batch creation**: a list in the title creates one task per item
 - **Manual ordering**: new tasks go on top, move them with `+` / `-`
 - **Projects** that can be renamed, deactivated (hides their tasks) or deleted
 - **Search** in title and text, plus a **project filter**, both covering all tasks
@@ -75,6 +76,16 @@ Start `hank` in a terminal. The bottom line always shows the keys available in t
 | `esc` | cancel |
 
 Due dates use the format `yyyy-mm-dd`.
+
+#### Batch creation
+
+A list in the title of a new task creates one task per item, in the order of the list. All other fields are shared, and `{$}` in the text is replaced by the item:
+
+| Title | Text | Creates |
+| --- | --- | --- |
+| `update libs for {"proj1", "proj2"}` | `run the tests of {$}` | `update libs for proj1` with `run the tests of proj1`, `update libs for proj2` with `run the tests of proj2` |
+
+Only the first list in a title is expanded. When editing an existing task, lists and `{$}` are kept as plain text.
 
 ### Projects (`p`)
 

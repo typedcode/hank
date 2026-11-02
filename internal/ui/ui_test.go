@@ -523,3 +523,77 @@ func TestSelectionAfterFinish(t *testing.T) {
 		t.Fatalf("open tasks left: %d", len(openTitles(t, s)))
 	}
 }
+
+func TestBatchCreate(t *testing.T) {
+	m, s := newTestModel(t)
+	press(m, "c")
+	typeText(m, `update libs for {"proj1", "proj2","proj3"}`)
+	press(m, "tab")
+	typeText(m, "tests of {$}\nand {$} again")
+	press(m, "tab")
+	typeText(m, "2026-10-01")
+	press(m, "tab", "tab", "tab", "enter")
+
+	if m.mode != modeList {
+		t.Fatalf("form still open: %q", m.form.err)
+	}
+	open, _, _ := s.ListTasks()
+	if len(open) != 3 {
+		t.Fatalf("expected three tasks, got %v", open)
+	}
+	for i, name := range []string{"proj1", "proj2", "proj3"} {
+		got := open[i]
+		if got.Title != "update libs for "+name || got.Text != "tests of "+name+"\nand "+name+" again" || got.Due != "2026-10-01" {
+			t.Fatalf("unexpected task %d: %+v", i, got)
+		}
+	}
+	if sel, ok := m.selected(); !ok || sel.ID != open[0].ID {
+		t.Fatalf("first task not selected: %+v", sel)
+	}
+}
+
+func TestExpandBatch(t *testing.T) {
+	cases := []struct {
+		title string
+		want  []string
+	}{
+		{`plain`, []string{"plain"}},
+		{`{"a"}`, []string{"a"}},
+		{`{"a", "b"} done`, []string{"a done", "b done"}},
+		{`x { "a" , "b" } y {"c", "d"}`, []string{`x a y {"c", "d"}`, `x b y {"c", "d"}`}},
+		{`not a list {a, b}`, []string{`not a list {a, b}`}},
+		{`empty {""}`, []string{`empty {""}`}},
+		{`{"a", b}`, []string{`{"a", b}`}},
+	}
+	for _, c := range cases {
+		var got []string
+		for _, task := range expandBatch(store.Task{Title: c.title}) {
+			got = append(got, task.Title)
+		}
+		if strings.Join(got, "|") != strings.Join(c.want, "|") {
+			t.Errorf("%q: got %q, want %q", c.title, got, c.want)
+		}
+	}
+}
+
+func TestBatchOnlyOnCreate(t *testing.T) {
+	m, s := newTestModel(t)
+	createTask(m, "plain")
+	press(m, "e")
+	typeText(m, ` {"a", "b"}`)
+	press(m, "tab")
+	typeText(m, "{$}")
+	press(m, "shift+tab", "enter")
+
+	open, _, _ := s.ListTasks()
+	if len(open) != 1 || open[0].Title != `plain {"a", "b"}` || open[0].Text != "{$}" {
+		t.Fatalf("edit expanded the list: %+v", open)
+	}
+
+	press(m, "c")
+	typeText(m, `{" "}`)
+	press(m, "enter")
+	if m.mode != modeForm || m.form.err == "" {
+		t.Fatalf("blank item accepted, mode %v", m.mode)
+	}
+}

@@ -296,6 +296,40 @@ func (s *Store) CreateTask(t Task) (int64, error) {
 	return res.LastInsertId()
 }
 
+// CreateTasks adds several tasks at once, or none on error. They end up at the
+// top of the open tasks in the given order and their IDs are returned.
+func (s *Store) CreateTasks(tasks []Task) ([]int64, error) {
+	for _, t := range tasks {
+		if err := s.checkProject(t.ProjectID); err != nil {
+			return nil, err
+		}
+	}
+	first, err := s.firstPosition()
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	pos := first - int64(len(tasks)-1)
+	ids := make([]int64, 0, len(tasks))
+	for i, t := range tasks {
+		res, err := tx.Exec(`INSERT INTO tasks (title, text, due_date, project_id, state, position) VALUES (?, ?, ?, ?, ?, ?)`,
+			t.Title, t.Text, nullable(t.Due), nullable(t.ProjectID), NotStarted, pos+int64(i))
+		if err != nil {
+			return nil, err
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, tx.Commit()
+}
+
 // UpdateTask changes the editable fields of a task.
 func (s *Store) UpdateTask(t Task) error {
 	var current int64

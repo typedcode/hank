@@ -242,3 +242,32 @@ func TestFilterAndPaging(t *testing.T) {
 		t.Fatalf("exact page: %d %v", len(page), more)
 	}
 }
+
+func TestCreateTasks(t *testing.T) {
+	s := openTest(t)
+	must(s.CreateTask(Task{Title: "old"}))
+
+	ids := must(s.CreateTasks([]Task{{Title: "a"}, {Title: "b"}, {Title: "c"}}))
+	if len(ids) != 3 {
+		t.Fatalf("ids: %v", ids)
+	}
+	open, _, _ := s.ListTasks()
+	if got := titles(open); !equal(got, []string{"a", "b", "c", "old"}) {
+		t.Fatalf("order: %v", got)
+	}
+	if open[0].ID != ids[0] || open[2].ID != ids[2] {
+		t.Fatalf("ids do not match tasks: %v %+v", ids, open)
+	}
+
+	work := must(s.CreateProject("work"))
+	if err := s.SetProjectActive(work, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateTasks([]Task{{Title: "x"}, {Title: "y", ProjectID: work}}); !errors.Is(err, ErrProjectInactive) {
+		t.Fatalf("expected ErrProjectInactive, got %v", err)
+	}
+	open, _, _ = s.ListTasks()
+	if len(open) != 4 {
+		t.Fatalf("failed batch left tasks behind: %v", titles(open))
+	}
+}
