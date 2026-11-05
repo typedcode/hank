@@ -13,7 +13,7 @@ hank shows your tasks in a single table: open tasks on top in your own order, fi
 ## Features
 
 - **Tasks** with title, optional multi-line text, due date and project
-- **States** at a glance: not started, started (green), finished (gray). Overdue tasks are shown in red
+- **States** at a glance: not started, started (green), finished (gray). Overdue tasks are shown in red, tasks that are due soon in orange
 - **Notes indicator**: tasks with extra text are marked with `ⓘ` in a dedicated column in the list
 - **Batch creation**: a list in the title creates one task per item
 - **Manual ordering**: new tasks go on top, move them with `+` / `-`
@@ -109,7 +109,7 @@ Deactivating or deleting a project asks for confirmation, and warns if the proje
 | `enter` on a button | cancel or save |
 | `esc` | cancel |
 
-Saving writes the config file described below. An empty field goes back to the default. A new page size applies immediately, a new database path on the next start of hank.
+Saving writes the config file described below. An empty field goes back to the default. A new page size or due soon value applies immediately, a new database path on the next start of hank.
 
 ## Configuration
 
@@ -120,7 +120,8 @@ An optional config file at `~/.config/hank/hank.json` (or `$XDG_CONFIG_HOME/hank
 ```json
 {
   "db_path": "~/somewhere/else/hank.db",
-  "finished_page_size": 50
+  "finished_page_size": 50,
+  "due_soon_days": 3
 }
 ```
 
@@ -128,6 +129,7 @@ An optional config file at `~/.config/hank/hank.json` (or `$XDG_CONFIG_HOME/hank
 | --- | --- | --- |
 | `db_path` | see above | location of the database file, `~` is expanded |
 | `finished_page_size` | `50` | number of finished tasks loaded at once |
+| `due_soon_days` | `3` | open tasks due today or within this many days are shown in orange, `0` means only today |
 
 ## Development
 

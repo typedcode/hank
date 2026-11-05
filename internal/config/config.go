@@ -14,10 +14,15 @@ import (
 // DefaultFinishedPageSize is the number of finished tasks loaded at once.
 const DefaultFinishedPageSize = 50
 
+// DefaultDueSoonDays is the number of days before its due date from which on
+// a task is shown as due soon.
+const DefaultDueSoonDays = 3
+
 // Config holds the settings from hank.json. Every field is optional.
 type Config struct {
 	DBPath           string `json:"db_path,omitempty"`
 	FinishedPageSize int    `json:"finished_page_size,omitempty"`
+	DueSoonDays      *int   `json:"due_soon_days,omitempty"` // nil means default, 0 is a valid value
 }
 
 // PageSize returns the configured number of finished tasks to load at once,
@@ -27,6 +32,15 @@ func (c Config) PageSize() int {
 		return DefaultFinishedPageSize
 	}
 	return c.FinishedPageSize
+}
+
+// DueSoon returns the configured number of days before its due date from
+// which on a task is shown as due soon, or the default.
+func (c Config) DueSoon() int {
+	if c.DueSoonDays == nil || *c.DueSoonDays < 0 {
+		return DefaultDueSoonDays
+	}
+	return *c.DueSoonDays
 }
 
 // Path returns the location of the configuration file:

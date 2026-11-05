@@ -357,6 +357,15 @@ func (m *Model) isOverdue(t store.Task) bool {
 	return t.State != store.Finished && t.Due != "" && t.Due < m.now().Format(dateLayout)
 }
 
+// isDueSoon reports whether an open task is due today or within the
+// configured number of days.
+func (m *Model) isDueSoon(t store.Task) bool {
+	if t.State == store.Finished || t.Due == "" || m.isOverdue(t) {
+		return false
+	}
+	return t.Due <= m.now().AddDate(0, 0, m.cfg.DueSoon()).Format(dateLayout)
+}
+
 func (m *Model) viewList() string {
 	// project and date columns are as narrow as their content, the title
 	// column takes the remaining width
@@ -377,6 +386,8 @@ func (m *Model) viewList() string {
 			style = style.Foreground(colorFinished)
 		case m.isOverdue(t):
 			style = style.Foreground(colorOverdue)
+		case m.isDueSoon(t):
+			style = style.Foreground(colorDueSoon)
 		}
 		marker := "  "
 		if i == m.cursor {
@@ -391,8 +402,10 @@ func (m *Model) viewList() string {
 		if t.State == store.Finished {
 			date = t.FinishedAt.Local().Format(dateLayout)
 		} else if m.isOverdue(t) {
-			// started tasks stay green, only their date turns red
+			// started tasks stay green, only their date changes color
 			dateStyle = dateStyle.Foreground(colorOverdue)
+		} else if m.isDueSoon(t) {
+			dateStyle = dateStyle.Foreground(colorDueSoon)
 		}
 		return style.Render(marker+fit(t.ProjectName, projW)+gap+fit(info, infoW)+gap+fit(t.Title, titleW)+gap) +
 			dateStyle.Render(fit(date, dateW))
@@ -472,6 +485,8 @@ func (m *Model) viewDetail() string {
 		due := t.Due
 		if m.isOverdue(t) {
 			due = styleError.Render(due + " (overdue)")
+		} else if m.isDueSoon(t) {
+			due = lipgloss.NewStyle().Foreground(colorDueSoon).Render(due + " (due soon)")
 		}
 		lines = append(lines, field("Due", due))
 	}

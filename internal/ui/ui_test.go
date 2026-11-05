@@ -635,7 +635,7 @@ func TestSettings(t *testing.T) {
 	typeText(m, dbPath)
 	press(m, "tab")
 	m.settings.pageSize.SetValue("7")
-	press(m, "tab", "tab", "enter")
+	press(m, "tab", "tab", "tab", "enter")
 	if m.mode != modeList {
 		t.Fatalf("not saved:\n%s", screen(m))
 	}
@@ -659,6 +659,44 @@ func TestSettings(t *testing.T) {
 	}
 	if cfg, _ := config.Load(); cfg.FinishedPageSize != 0 {
 		t.Fatalf("default page size written: %+v", cfg)
+	}
+}
+
+func TestDueSoon(t *testing.T) {
+	m, _ := newTestModel(t) // today is 2026-09-24
+	check := func(due string, state store.State, want bool) {
+		t.Helper()
+		if got := m.isDueSoon(store.Task{Due: due, State: state}); got != want {
+			t.Errorf("due %q, state %v: got %v", due, state, got)
+		}
+	}
+	check("", store.NotStarted, false)
+	check("2026-09-23", store.NotStarted, false) // overdue
+	check("2026-09-24", store.NotStarted, true)
+	check("2026-09-27", store.NotStarted, true)
+	check("2026-09-27", store.Started, true)
+	check("2026-09-28", store.NotStarted, false)
+	check("2026-09-27", store.Finished, false)
+
+	// the number of days can be changed in the settings and applies at once
+	press(m, "s", "tab", "tab")
+	typeText(m, "0\n")
+	if m.mode != modeList {
+		t.Fatalf("not saved:\n%s", screen(m))
+	}
+	check("2026-09-24", store.NotStarted, true)
+	check("2026-09-25", store.NotStarted, false)
+	if cfg, _ := config.Load(); cfg.DueSoonDays == nil || *cfg.DueSoonDays != 0 {
+		t.Fatalf("0 not written: %+v", cfg)
+	}
+
+	press(m, "s", "tab", "tab")
+	if got := m.settings.dueSoon.Value(); got != "0" {
+		t.Fatalf("due soon field: %q", got)
+	}
+	typeText(m, "x\n")
+	if m.mode != modeSettings || !strings.Contains(screen(m), "Due soon days") {
+		t.Fatalf("invalid value accepted:\n%s", screen(m))
 	}
 }
 

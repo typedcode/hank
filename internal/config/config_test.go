@@ -72,6 +72,28 @@ func TestSaveFile(t *testing.T) {
 	}
 }
 
+func TestDueSoon(t *testing.T) {
+	if (Config{}).DueSoon() != DefaultDueSoonDays {
+		t.Fatal("default not used")
+	}
+	path := filepath.Join(t.TempDir(), "hank.json")
+	zero := 0
+	if err := SaveFile(path, Config{DueSoonDays: &zero}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DueSoon() != 0 {
+		t.Fatalf("explicit 0 lost: %d", cfg.DueSoon())
+	}
+	negative := -1
+	if (Config{DueSoonDays: &negative}).DueSoon() != DefaultDueSoonDays {
+		t.Fatal("negative value used")
+	}
+}
+
 func TestDefaultPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

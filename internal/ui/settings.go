@@ -17,6 +17,7 @@ import (
 const (
 	settingsDBPath = iota
 	settingsPageSize
+	settingsDueSoon
 	settingsCancel
 	settingsSave
 	settingsCount
@@ -26,6 +27,7 @@ const (
 type settingsForm struct {
 	dbPath   textinput.Model
 	pageSize textinput.Model
+	dueSoon  textinput.Model
 	focus    int
 	err      string
 }
@@ -34,6 +36,7 @@ func (m *Model) openSettings() tea.Cmd {
 	f := settingsForm{
 		dbPath:   newInput("default"),
 		pageSize: newInput(strconv.Itoa(config.DefaultFinishedPageSize)),
+		dueSoon:  newInput(strconv.Itoa(config.DefaultDueSoonDays)),
 	}
 	if def, err := config.DefaultDBPath(); err == nil {
 		f.dbPath.Placeholder = def
@@ -44,6 +47,9 @@ func (m *Model) openSettings() tea.Cmd {
 	if m.cfg.FinishedPageSize > 0 {
 		f.pageSize.SetValue(strconv.Itoa(m.cfg.FinishedPageSize))
 	}
+	if m.cfg.DueSoonDays != nil {
+		f.dueSoon.SetValue(strconv.Itoa(*m.cfg.DueSoonDays))
+	}
 	m.settings = f
 	m.mode = modeSettings
 	return m.settings.setFocus(settingsDBPath)
@@ -53,17 +59,21 @@ func (f *settingsForm) resize(screen int) {
 	w := boxInner(boxWidth(screen, formMaxWidth)) - styleField.GetHorizontalFrameSize()
 	f.dbPath.Width = w - 1
 	f.pageSize.Width = w - 1
+	f.dueSoon.Width = w - 1
 }
 
 func (f *settingsForm) setFocus(i int) tea.Cmd {
 	f.focus = (i + settingsCount) % settingsCount
 	f.dbPath.Blur()
 	f.pageSize.Blur()
+	f.dueSoon.Blur()
 	switch f.focus {
 	case settingsDBPath:
 		return f.dbPath.Focus()
 	case settingsPageSize:
 		return f.pageSize.Focus()
+	case settingsDueSoon:
+		return f.dueSoon.Focus()
 	}
 	return nil
 }
@@ -75,6 +85,8 @@ func (f *settingsForm) updateInputs(msg tea.Msg) tea.Cmd {
 		f.dbPath, cmd = f.dbPath.Update(msg)
 	case settingsPageSize:
 		f.pageSize, cmd = f.pageSize.Update(msg)
+	case settingsDueSoon:
+		f.dueSoon, cmd = f.dueSoon.Update(msg)
 	}
 	return cmd
 }
@@ -112,6 +124,15 @@ func (m *Model) saveSettings() {
 			return
 		}
 		cfg.FinishedPageSize = n
+	}
+	cfg.DueSoonDays = nil
+	if v := strings.TrimSpace(f.dueSoon.Value()); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			f.err = "Due soon days must be 0 or a positive number."
+			return
+		}
+		cfg.DueSoonDays = &n
 	}
 	if err := m.checkDBPath(cfg); err != nil {
 		f.err = err.Error()
@@ -154,6 +175,8 @@ func (f *settingsForm) view(screen int) string {
 		formField(f.focus == settingsDBPath, fieldW, f.dbPath.View()),
 		formLabel(f.focus == settingsPageSize, "Finished tasks loaded at once"),
 		formField(f.focus == settingsPageSize, fieldW, f.pageSize.View()),
+		formLabel(f.focus == settingsDueSoon, "Days before due date to show tasks in orange"),
+		formField(f.focus == settingsDueSoon, fieldW, f.dueSoon.View()),
 		"",
 		lipgloss.JoinHorizontal(lipgloss.Top,
 			formButton(f.focus == settingsCancel, "Cancel"), " ",

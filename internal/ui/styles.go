@@ -13,6 +13,7 @@ var (
 	colorStarted  = lipgloss.AdaptiveColor{Light: "28", Dark: "10"}
 	colorFinished = lipgloss.AdaptiveColor{Light: "248", Dark: "244"}
 	colorOverdue  = lipgloss.AdaptiveColor{Light: "160", Dark: "9"}
+	colorDueSoon  = lipgloss.AdaptiveColor{Light: "166", Dark: "214"}
 	colorAccent   = lipgloss.AdaptiveColor{Light: "25", Dark: "75"}
 	colorSelected = lipgloss.AdaptiveColor{Light: "254", Dark: "237"}
 	colorDim      = lipgloss.AdaptiveColor{Light: "250", Dark: "240"}
