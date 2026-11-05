@@ -16,8 +16,8 @@ const DefaultFinishedPageSize = 50
 
 // Config holds the settings from hank.json. Every field is optional.
 type Config struct {
-	DBPath           string `json:"db_path"`
-	FinishedPageSize int    `json:"finished_page_size"`
+	DBPath           string `json:"db_path,omitempty"`
+	FinishedPageSize int    `json:"finished_page_size,omitempty"`
 }
 
 // PageSize returns the configured number of finished tasks to load at once,
@@ -78,6 +78,28 @@ func LoadFile(path string) (Config, error) {
 		return cfg, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return cfg, nil
+}
+
+// Save writes cfg to the configuration file at Path.
+func Save(cfg Config) error {
+	path, err := Path()
+	if err != nil {
+		return err
+	}
+	return SaveFile(path, cfg)
+}
+
+// SaveFile writes cfg to path, creating its directory if necessary. Unset
+// settings are left out, so they keep following the defaults.
+func SaveFile(path string, cfg Config) error {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 // ResolveDBPath returns the configured database path with a leading ~

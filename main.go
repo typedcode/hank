@@ -34,6 +34,6 @@ func run() error {
 	}
 	defer s.Close()
 
-	_, err = tea.NewProgram(ui.New(s, cfg.PageSize()), tea.WithAltScreen()).Run()
+	_, err = tea.NewProgram(ui.New(s, cfg), tea.WithAltScreen()).Run()
 	return err
 }

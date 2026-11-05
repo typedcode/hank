@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,17 +11,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/hoffmannma/hank/internal/config"
 	"github.com/hoffmannma/hank/internal/store"
 )
 
 func newTestModel(t *testing.T) (*Model, *store.Store) {
 	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	s, err := store.Open(filepath.Join(t.TempDir(), "hank.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	m := New(s, 50)
+	m := New(s, config.Config{FinishedPageSize: 50})
 	m.now = func() time.Time { return time.Date(2026, 9, 24, 12, 0, 0, 0, time.Local) }
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	return m, s
@@ -28,7 +31,7 @@ func newTestModel(t *testing.T) (*Model, *store.Store) {
 
 var specialKeys = map[string]tea.KeyType{
 	"enter": tea.KeyEnter, "tab": tea.KeyTab, "shift+tab": tea.KeyShiftTab,
-	"esc": tea.KeyEsc, "up": tea.KeyUp, "down": tea.KeyDown,
+	"esc": tea.KeyEsc, "up": tea.KeyUp, "down": tea.KeyDown, "space": tea.KeySpace,
 }
 
 // press sends keys; each argument is a special key name or a single rune.
@@ -183,7 +186,7 @@ func TestListActions(t *testing.T) {
 		t.Fatalf("after moving up: %v cursor %d", got, m.cursor)
 	}
 
-	press(m, "s")
+	press(m, "space")
 	if task, _ := m.selected(); task.State != store.Started {
 		t.Fatalf("not started: %+v", task)
 	}
@@ -195,7 +198,7 @@ func TestListActions(t *testing.T) {
 	if !strings.Contains(screen(m), "2026-09-24") {
 		t.Fatal("finish date not displayed")
 	}
-	press(m, "-", "+", "s") // no effect on finished tasks
+	press(m, "-", "+", "space") // no effect on finished tasks
 	if task, _ := m.selected(); task.State != store.Finished || strings.Join(openTitles(t, s), "") != "ab" {
 		t.Fatalf("finished task was changed: %+v", task)
 	}
@@ -309,7 +312,7 @@ func TestViewSizes(t *testing.T) {
 	createTask(m, strings.Repeat("long title ", 20))
 	for _, size := range [][2]int{{20, 5}, {80, 24}, {200, 60}} {
 		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
-		for _, keys := range [][]string{nil, {"enter"}, {"esc", "c"}, {"esc", "p"}, {"esc", "d"}} {
+		for _, keys := range [][]string{nil, {"enter"}, {"esc", "c"}, {"esc", "p"}, {"esc", "s"}, {"esc", "d"}} {
 			press(m, keys...)
 			lines := strings.Split(m.View(), "\n")
 			for _, l := range lines {
@@ -595,5 +598,82 @@ func TestBatchOnlyOnCreate(t *testing.T) {
 	press(m, "enter")
 	if m.mode != modeForm || m.form.err == "" {
 		t.Fatalf("blank item accepted, mode %v", m.mode)
+	}
+}
+
+func TestSettings(t *testing.T) {
+	m, _ := newTestModel(t)
+	press(m, "s")
+	if m.mode != modeSettings || !strings.Contains(screen(m), "Settings") {
+		t.Fatalf("settings not open:\n%s", screen(m))
+	}
+
+	// cancel keeps everything
+	press(m, "tab")
+	typeText(m, "7")
+	press(m, "esc")
+	if m.mode != modeList || m.pageSize != 50 {
+		t.Fatalf("cancel: mode %d, page size %d", m.mode, m.pageSize)
+	}
+	if cfg, err := config.Load(); err != nil || cfg != (config.Config{}) {
+		t.Fatalf("cancel wrote config: %+v, %v", cfg, err)
+	}
+
+	// the current values are shown, invalid ones are rejected
+	press(m, "s", "tab")
+	if got := m.settings.pageSize.Value(); got != "50" {
+		t.Fatalf("page size field: %q", got)
+	}
+	typeText(m, "x\n")
+	if m.mode != modeSettings || !strings.Contains(screen(m), "positive number") {
+		t.Fatalf("invalid page size accepted:\n%s", screen(m))
+	}
+
+	// typing "s" and space in a field does not trigger list actions
+	dbPath := filepath.Join(t.TempDir(), "sub", "other s.db")
+	press(m, "esc", "s")
+	typeText(m, dbPath)
+	press(m, "tab")
+	m.settings.pageSize.SetValue("7")
+	press(m, "tab", "tab", "enter")
+	if m.mode != modeList {
+		t.Fatalf("not saved:\n%s", screen(m))
+	}
+	if m.pageSize != 7 {
+		t.Fatalf("page size not applied: %d", m.pageSize)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (config.Config{DBPath: dbPath, FinishedPageSize: 7}); cfg != want {
+		t.Fatalf("got %+v, want %+v", cfg, want)
+	}
+
+	// emptying a field goes back to the default
+	press(m, "s", "tab")
+	m.settings.pageSize.SetValue("")
+	press(m, "enter")
+	if m.pageSize != config.DefaultFinishedPageSize {
+		t.Fatalf("default page size not used: %d", m.pageSize)
+	}
+	if cfg, _ := config.Load(); cfg.FinishedPageSize != 0 {
+		t.Fatalf("default page size written: %+v", cfg)
+	}
+}
+
+func TestSettingsRejectsBrokenDBPath(t *testing.T) {
+	m, _ := newTestModel(t)
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	press(m, "s")
+	typeText(m, filepath.Join(file, "hank.db")+"\n")
+	if m.mode != modeSettings || !strings.Contains(screen(m), "Cannot open database") {
+		t.Fatalf("broken path accepted:\n%s", screen(m))
+	}
+	if cfg, _ := config.Load(); cfg.DBPath != "" {
+		t.Fatalf("broken path written: %+v", cfg)
 	}
 }

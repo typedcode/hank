@@ -49,6 +49,29 @@ func TestLoadFileAndResolve(t *testing.T) {
 	}
 }
 
+func TestSaveFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "hank.json")
+	want := Config{DBPath: "~/data/tasks.db", FinishedPageSize: 20}
+	if err := SaveFile(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+
+	if err := SaveFile(path, Config{}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != "{}\n" {
+		t.Fatalf("unset settings written: %s", data)
+	}
+}
+
 func TestDefaultPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

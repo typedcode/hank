@@ -44,7 +44,7 @@ Start `hank` in a terminal. The bottom line always shows the keys available in t
 | --- | --- |
 | `↑`/`k`, `↓`/`j` | select task |
 | `+` / `-` | move open task up / down |
-| `s` | start / stop task |
+| `space` | start / stop task |
 | `f` | finish / reopen task |
 | `c` | create task |
 | `e` | edit task |
@@ -54,6 +54,7 @@ Start `hank` in a terminal. The bottom line always shows the keys available in t
 | `F` | filter by project |
 | `esc` | clear search and filter |
 | `p` | manage projects |
+| `s` | change settings |
 | `q` | quit |
 
 ### Search
@@ -99,11 +100,22 @@ Only the first list in a title is expanded. When editing an existing task, lists
 
 Deactivating or deleting a project asks for confirmation, and warns if the project still has open tasks.
 
+### Settings (`s`)
+
+| Key | Action |
+| --- | --- |
+| `tab` / `shift+tab` | next / previous field |
+| `enter` in a field | save the settings |
+| `enter` on a button | cancel or save |
+| `esc` | cancel |
+
+Saving writes the config file described below. An empty field goes back to the default. A new page size applies immediately, a new database path on the next start of hank.
+
 ## Configuration
 
 The database is stored at `~/.local/share/hank/hank.db` (or `$XDG_DATA_HOME/hank/hank.db`).
 
-An optional config file at `~/.config/hank/hank.json` (or `$XDG_CONFIG_HOME/hank/hank.json`) can change that:
+An optional config file at `~/.config/hank/hank.json` (or `$XDG_CONFIG_HOME/hank/hank.json`) can change that. It can be edited by hand or from within hank with `s`:
 
 ```json
 {

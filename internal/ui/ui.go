@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/hoffmannma/hank/internal/config"
 	"github.com/hoffmannma/hank/internal/store"
 )
 
@@ -23,6 +24,7 @@ const (
 	modeConfirm
 	modeSearch
 	modeFilter
+	modeSettings
 )
 
 // confirmDialog asks a y/n question on top of the view it returns to.
@@ -35,6 +37,7 @@ type confirmDialog struct {
 // Model is the Bubble Tea model of hank.
 type Model struct {
 	store *store.Store
+	cfg   config.Config
 	now   func() time.Time
 
 	width, height int
@@ -53,13 +56,13 @@ type Model struct {
 
 	form     taskForm
 	projects projectsView
+	settings settingsForm
 	confirm  confirmDialog
 }
 
-// New creates the model and loads the task list. pageSize is the number of
-// finished tasks loaded at once.
-func New(s *store.Store, pageSize int) *Model {
-	m := &Model{store: s, now: time.Now, width: 80, height: 24, pageSize: pageSize,
+// New creates the model and loads the task list.
+func New(s *store.Store, cfg config.Config) *Model {
+	m := &Model{store: s, cfg: cfg, now: time.Now, width: 80, height: 24, pageSize: cfg.PageSize(),
 		search: newInput(""), filter: filter{projectID: optAllProjects}}
 	m.reload(0)
 	return m
@@ -149,6 +152,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == modeForm {
 			m.form.resize(m.width)
 		}
+		if m.mode == modeSettings {
+			m.settings.resize(m.width)
+		}
 		m.projects.resize(m.width)
 		return m, nil
 	case tea.KeyMsg:
@@ -173,6 +179,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.updateSearch(msg)
 		case modeFilter:
 			return m, m.updateFilterPicker(msg)
+		case modeSettings:
+			return m, m.updateSettings(msg)
 		case modeConfirm:
 			switch msg.String() {
 			case "y", "Y":
@@ -188,6 +196,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeForm:
 		return m, m.form.updateInputs(msg)
+	case modeSettings:
+		return m, m.settings.updateInputs(msg)
 	case modeProjects:
 		var cmd tea.Cmd
 		m.projects.input, cmd = m.projects.input.Update(msg)
@@ -215,6 +225,8 @@ func (m *Model) updateList(msg tea.KeyMsg) tea.Cmd {
 		return m.openForm(store.Task{})
 	case "p":
 		m.openProjects()
+	case "s":
+		return m.openSettings()
 	case "/":
 		return m.startSearch()
 	case "F":
@@ -238,7 +250,7 @@ func (m *Model) updateList(msg tea.KeyMsg) tea.Cmd {
 			m.setErr(m.store.SwapPositions(task.ID, m.open[other].ID))
 			m.reload(task.ID)
 		}
-	case "s":
+	case " ":
 		if task.State != store.Finished {
 			m.setErr(m.store.ToggleStarted(task.ID))
 			m.reload(task.ID)
@@ -291,6 +303,8 @@ func (m *Model) viewFor(md mode) string {
 		return m.overlay(m.viewList(), m.projects.view(m.width))
 	case modeFilter:
 		return m.overlay(m.viewList(), m.filterPicker.view(m.width))
+	case modeSettings:
+		return m.overlay(m.viewList(), m.settings.view(m.width))
 	case modeConfirm:
 		inner := min(lipgloss.Width(m.confirm.message), boxInner(boxWidth(m.width, 64)))
 		msg := lipgloss.NewStyle().Width(inner).Render(m.confirm.message)
@@ -311,7 +325,7 @@ func (m *Model) helpLine() string {
 	var help string
 	switch m.mode {
 	case modeList:
-		help = "↑/k ↓/j select · +/- move · s start/stop · f finish · c create · e edit · d delete · enter details · / search · F filter · p projects · q quit"
+		help = "↑/k ↓/j select · +/- move · space start/stop · f finish · c create · e edit · d delete · enter details · / search · F filter · p projects · s settings · q quit"
 		if m.filterActive() {
 			help = "esc clear search/filter · " + help
 		}
@@ -333,6 +347,8 @@ func (m *Model) helpLine() string {
 		help = "type to search title and text · tab project filter · enter done · esc clear"
 	case modeFilter:
 		help = "↑/k ↓/j select · enter choose · esc back"
+	case modeSettings:
+		help = "tab/shift+tab next/previous field · enter save · esc cancel"
 	}
 	return styleHelp.Render(fit(help, m.width))
 }

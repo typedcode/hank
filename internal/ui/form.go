@@ -240,29 +240,34 @@ func (m *Model) updatePicker(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
+func formLabel(focused bool, text string) string {
+	if focused {
+		return styleFocused.Render("› " + text)
+	}
+	return styleLabel.Render("  " + text)
+}
+
+func formField(focused bool, width int, content string) string {
+	if focused {
+		return styleFieldFocused.Width(width).Render(content)
+	}
+	return styleField.Width(width).Render(content)
+}
+
+func formButton(focused bool, text string) string {
+	if focused {
+		return styleButtonActive.Render(text)
+	}
+	return styleButton.Render(text)
+}
+
 func (f *taskForm) view(screen int) string {
 	w := boxWidth(screen, formMaxWidth)
 	fieldW := boxInner(w) - styleField.GetHorizontalFrameSize()
 
-	label := func(i int, text string) string {
-		if f.focus == i {
-			return styleFocused.Render("› " + text)
-		}
-		return styleLabel.Render("  " + text)
-	}
-	field := func(i int, content string) string {
-		s := styleField
-		if f.focus == i {
-			s = styleFieldFocused
-		}
-		return s.Width(fieldW).Render(content)
-	}
-	button := func(i int, text string) string {
-		if f.focus == i {
-			return styleButtonActive.Render(text)
-		}
-		return styleButton.Render(text)
-	}
+	label := func(i int, text string) string { return formLabel(f.focus == i, text) }
+	field := func(i int, content string) string { return formField(f.focus == i, fieldW, content) }
+	button := func(i int, text string) string { return formButton(f.focus == i, text) }
 
 	project := f.projectName
 	if project == "" {
